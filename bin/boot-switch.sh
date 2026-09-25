@@ -170,6 +170,25 @@ ensure_twrp() {
   return 1
 }
 
+# ---- read-back check ----------------------------------------------------------
+# verify_part IMAGE PARTITION — read the first <size of IMAGE> bytes of the
+# by-name partition back on the device and compare SHA-256 with the host
+# file. Exits non-zero on any mismatch or read failure.
+host_sha256() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | awk '{print $1}'; }
+verify_part() {
+  local img="$1" part="$2" size want got
+  size=$(wc -c < "$img" | tr -d ' ')
+  want=$(host_sha256 "$img")
+  echo ">> read-back: first $size bytes of $part vs $(basename "$img")..."
+  got=$(timeout 1800 adb shell "dd if=$P/$part bs=1M 2>/dev/null | head -c $size | sha256sum" \
+        | tr -d '\r' | awk '{print $1}') || true
+  if [ "$got" != "$want" ]; then
+    echo "!! read-back MISMATCH on $part: host $want, device ${got:-<no output>}" >&2
+    exit 1
+  fi
+  echo ">> read-back OK: $part sha256 $want"
+}
+
 # ---- helpers ----------------------------------------------------------------
 backup_para() {
   if [ ! -f "$PARA_BACKUP" ]; then
@@ -233,6 +252,7 @@ cmd_flash() {
   echo ">> flashing $img -> boot (16 MiB partition)"
   adb_q push "$img" /tmp/new-boot.img >/dev/null
   adb_sh "dd if=/tmp/new-boot.img of=$P/boot bs=1M conv=fsync" >/dev/null
+  verify_part "$img" boot
   echo ">> flashed. Restore with: boot-switch.sh restore (backup kept in $BOOT_BACKUP_DIR)"
   if [ "$target" = android ]; then
     echo ">> rebooting into the flashed image (clears para)..."
@@ -252,6 +272,7 @@ cmd_restore() {
   echo ">> restoring $bak -> boot"
   adb_q push "$bak" /tmp/restore-boot.img >/dev/null
   adb_sh "dd if=/tmp/restore-boot.img of=$P/boot bs=1M conv=fsync" >/dev/null
+  verify_part "$bak" boot
   echo ">> restored. TWRP default kept (para untouched)."
 }
 

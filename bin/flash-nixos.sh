@@ -222,6 +222,25 @@ twrp_dd_part() { # devnode src-dest-label  (image already pushed to /tmp on devi
   adb_sh "dd if=$1 of=$P/$2 bs=1M conv=fsync"
 }
 
+# ---- read-back check ----------------------------------------------------------
+# verify_part IMAGE PARTITION — read the first <size of IMAGE> bytes of the
+# by-name partition back on the device and compare SHA-256 with the host
+# file. Exits non-zero on any mismatch or read failure.
+host_sha256() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | awk '{print $1}'; }
+verify_part() {
+  local img="$1" part="$2" size want got
+  size=$(wc -c < "$img" | tr -d ' ')
+  want=$(host_sha256 "$img")
+  echo ">> read-back: first $size bytes of $part vs $(basename "$img")..."
+  got=$(timeout 1800 adb shell "dd if=$P/$part bs=1M 2>/dev/null | head -c $size | sha256sum" \
+        | tr -d '\r' | awk '{print $1}') || true
+  if [ "$got" != "$want" ]; then
+    echo "!! read-back MISMATCH on $part: host $want, device ${got:-<no output>}" >&2
+    exit 1
+  fi
+  echo ">> read-back OK: $part sha256 $want"
+}
+
 # ---- commands --------------------------------------------------------------
 cmd_status() {
   echo "device state : $(state)"
@@ -271,6 +290,7 @@ cmd_rootfs() {
   adb_sh "umount /data 2>/dev/null; umount /sdcard 2>/dev/null; umount /cache 2>/dev/null; umount $P/$TARGET_PART 2>/dev/null; sync; true" >/dev/null
   say "streaming rootfs -> $P/$TARGET_PART ($(wc -c < "$img" | tr -d ' ') bytes; several minutes)..."
   timeout 3600 adb shell "dd of=$P/$TARGET_PART bs=1M conv=fsync" < "$img"
+  verify_part "$img" "$TARGET_PART"
   say "rootfs flashed. Device is in TWRP (para sticky)."
 }
 
