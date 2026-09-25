@@ -56,14 +56,20 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # adb/lsusb live in the flake devshell (bare host PATH has no adb —
 # AGENTS.md rule 7). Re-exec once inside `nix develop` when missing;
 # the flag prevents an infinite re-exec if the devshell lacks the tool.
-if ! command -v adb >/dev/null 2>&1 || ! command -v lsusb >/dev/null 2>&1; then
+# On macOS there is no lsusb at all (nixpkgs usbutils is Linux-only), so
+# there it is optional: without it the MediaTek charging/download modes
+# (poc/preloader/brom) read as `offline`; adb states are unaffected.
+need_lsusb=1
+[ "$(uname -s)" = Darwin ] && need_lsusb=0
+if ! command -v adb >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1 ||
+   { [ "$need_lsusb" = 1 ] && ! command -v lsusb >/dev/null 2>&1; }; then
   if [ -z "${GEMINI_DEVSH_REEXEC:-}" ]; then
     export GEMINI_DEVSH_REEXEC=1
     cd "$ROOT"
     exec nix develop --command bash "bin/boot-switch.sh" "$@"
   fi
-  echo "!! adb/lsusb not found even inside the devshell — does the flake devShell" >&2
-  echo "   carry android-tools + usbutils? (flake.nix, devShells.x86_64-linux.default)" >&2
+  echo "!! adb/timeout/lsusb not found even inside the devshell — does the flake devShell" >&2
+  echo "   carry android-tools + coreutils + usbutils (Linux)? (flake.nix / flake-macos.nix)" >&2
   exit 1
 fi
 
