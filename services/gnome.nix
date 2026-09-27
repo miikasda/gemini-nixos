@@ -48,6 +48,11 @@ let
   # see the package header + docs/desktop-plumbing.md §"On-screen
   # keyboard").  Enabled + locked below via the system dconf DB.
   noOskExtension = pkgs.callPackage ../pkgs/gnome-extension-no-osk { };
+  # Keycap print (services/keyboard.nix): "uk" = the layout's default
+  # block, anything else is an xkb variant of `gemini`.
+  kbVariant = config.services.geminiKeyboard.variant;
+  xkbVariant = if kbVariant == "uk" then "" else kbVariant;
+  inputSource = if xkbVariant == "" then "gemini" else "gemini+${xkbVariant}";
 in
 {
   options.services.gnomeDesktop = {
@@ -181,6 +186,8 @@ in
       XKB_CONFIG_ROOT = "${geminiXkeyboardConfig}/etc/X11/xkb";
       XKB_DEFAULT_LAYOUT = "gemini";
       XKB_DEFAULT_MODEL = "pc105";
+      # Keycap print (services/keyboard.nix); unset for the default (UK).
+      XKB_DEFAULT_VARIANT = lib.mkIf (xkbVariant != "") xkbVariant;
 
       # ---- Audio socket redirection (2026-09-10p) ------------------
       # services/audio.nix runs the ONE PipeWire/WirePlumber/pipewire-pulse
@@ -224,7 +231,7 @@ in
         settings = {
           "org/gnome/desktop/input-sources" = {
             sources = lib.gvariant.mkArray [
-              (lib.gvariant.mkTuple [ "xkb" "gemini" ])
+              (lib.gvariant.mkTuple [ "xkb" inputSource ])
             ];
           };
           # On-screen keyboard: the a11y toggle is off and locked.  The
