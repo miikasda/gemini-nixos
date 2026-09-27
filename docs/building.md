@@ -88,6 +88,20 @@ Only a `path:` evaluation sees untracked files: the macOS build
 `nixos-rebuild --flake .#gemini` in a Git checkout) does not, and builds
 exactly what it built before. Without `local.nix` nothing changes.
 
+`local.nix.example` (added 2026-09-26) is a commented template covering
+the SSH key, key-only SSH, the `cjdell` password hash, Wi-Fi networks and
+record, dropping the usb0 default gateway when no host runs
+`bin/usb-tether-nat.sh` (otherwise it outranks the Wi-Fi route: no
+internet, no network time), and time zone/locale.
+
+**Warning:** because on-device rebuilds (`bin/device-rebuild.sh`,
+`nixos-rebuild switch --flake .` in the device's checkout) are
+`git+file:` evaluations, they ignore `local.nix` and put this unit's
+settings back: the root SSH key, `cjdell`/`0000` with SSH password
+login, its Wi-Fi networks and factory record. Until that is solved, a
+unit using `local.nix` should be updated by building on the host and
+flashing, not by rebuilding on the device.
+
 ## How the separation is organised
 
 | Piece | Scope |
