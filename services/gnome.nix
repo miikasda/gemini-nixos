@@ -109,6 +109,21 @@ in
         gnome-feasibility.md.
       '';
     };
+
+    region = lib.mkOption {
+      type = lib.types.str;
+      default = config.i18n.extraLocaleSettings.LC_TIME or config.i18n.defaultLocale;
+      defaultText = lib.literalExpression
+        "config.i18n.extraLocaleSettings.LC_TIME or config.i18n.defaultLocale";
+      example = "fi_FI.UTF-8";
+      description = ''
+        GNOME's regional formats (Settings -> Region & Language ->
+        Formats; dconf /system/locale/region, locked). Follows the
+        system locale by default, so setting i18n.* is enough: LC_TIME
+        if set, else i18n.defaultLocale. Note GNOME applies the region to
+        all format categories in the session (numbers included).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -256,8 +271,10 @@ in
           # '' while `dconf dump /` showed the orphan node.  Most schemas
           # derive the path from the id (hence input-sources above); this
           # one does not.
+          # [2026-09-26] value from cfg.region (default: the system
+          # locale, config/gemini.nix = en_GB as before).
           "system/locale" = {
-            region = "en_GB.UTF-8";
+            region = cfg.region;
           };
           # Enable the no-osk extension declaratively.  NixOS has no
           # first-class option for this (the nixpkgs GNOME doc: a GSettings
